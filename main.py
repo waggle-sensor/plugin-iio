@@ -30,7 +30,6 @@ def main():
                         datefmt="%Y/%m/%d %H:%M:%S")
 
     param_list = build_iio_param_list(args.rootdir)
-    print(param_list)
 
     for sensor_name, name, _ in param_list:
         logging.info("detected sensor %r param %r", sensor_name, name)
@@ -41,7 +40,7 @@ def main():
 
     while True:
         time.sleep(args.rate)
-        for sensor_name, name, path in detected_paths:
+        for sensor_name, name, path in param_list:
             value = float(path.read_text())
             plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name})
 
