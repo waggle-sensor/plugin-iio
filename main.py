@@ -8,9 +8,9 @@ import waggle.plugin as plugin
 def build_iio_param_list():
     param_list = []
     for sensor_path in Path("/sys/bus/iio/devices").glob("*/name"):
-        sensor_name = sensor_path.name.strip()
+        sensor_name = sensor_path.read_text().strip()
         for path in sensor_path.glob("in_*_input"):
-            name = path.read_text().strip()
+            name = path.name.strip()
             param_list.append((sensor_name, name, path))    
     return param_list
 
