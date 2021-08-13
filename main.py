@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--rootdir", type=Path, default="/sys/bus/iio/devices", help="root iio device directory")
     parser.add_argument("--debug", action="store_true", help="enable debug logs")
     parser.add_argument("--rate", default=30.0, type=float, help="sampling rate")
+    parser.add_argument("--scope", default="all", choices=["all", "node", "beehive"], help="publish scope")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -42,7 +43,8 @@ def main():
         time.sleep(args.rate)
         for sensor_name, name, path in param_list:
             value = float(path.read_text())
-            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name})
+            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=args.scope)
+            logging.debug("published %s %s %s", sensor_name, name, value)
 
 if __name__ == "__main__":
     main()
