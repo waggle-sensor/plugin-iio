@@ -1,7 +1,7 @@
 {
     "name": "iio",
     "description": "Scans and publishes parameter values for Linux IIO devices.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "sources": [
         {
             "architectures": [

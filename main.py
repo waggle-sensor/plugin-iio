@@ -23,6 +23,28 @@ def build_iio_param_set(rootdir, filter=""):
     return results
 
 
+transform_names = {
+    "in_humidityrelative_input": "relative_humidity",
+    "in_pressure_input": "pressure",
+    "in_temp_input": "temperature",
+}
+
+
+transform_funcs = {
+    ("bme280", "in_humidityrelative_input"): lambda x: x/1000,
+    ("bme280", "in_pressure_input"): lambda x: x*1000,
+    ("bme280", "in_temp_input"): lambda x: x/1000,
+
+    ("bme680", "in_humidityrelative_input"): lambda x: x,
+    ("bme680", "in_pressure_input"): lambda x: x*100,
+    ("bme680", "in_temp_input"): lambda x: x/1000,
+}
+
+
+def transform_value(sensor_name, name, value):
+    return transform_names[name], transform_funcs[sensor_name, name](value)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rootdir", type=Path, default="/sys/bus/iio/devices", help="root iio device directory")
@@ -58,6 +80,16 @@ def main():
 
             plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=args.scope)
             logging.debug("published %s %s %s", sensor_name, name, value)
+
+            # transforme value to standard ontology and units, if possible
+            try:
+                tfm_name, tfm_value = transform_value(sensor_name, name, value)
+            except KeyError:
+                logging.debug("no transform for %s %s - skipping", sensor_name, name)
+                continue
+
+            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope=args.scope)
+            logging.debug("published transformed value %s %s %s", sensor_name, tfm_name, tfm_value)
 
 if __name__ == "__main__":
     main()
