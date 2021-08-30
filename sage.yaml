@@ -1,0 +1,10 @@
+name: plugin-iio
+description: Scans and publishes parameter values for Linux IIO devices.
+version: "0.2.0"
+source:
+  architectures:
+    - linux/amd64
+    - linux/arm64
+    - linux/arm/v7
+  url: https://github.com/waggle-sensor/plugin-iio
+  branch: main
