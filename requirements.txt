@@ -1,1 +1,1 @@
-https://github.com/waggle-sensor/pywaggle/archive/refs/tags/0.43.2.zip
+https://github.com/waggle-sensor/pywaggle/archive/refs/tags/0.44.0.zip
