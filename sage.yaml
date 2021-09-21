@@ -1,6 +1,6 @@
 name: plugin-iio
 description: Scans and publishes parameter values for Linux IIO devices.
-version: "0.3.0"
+version: "0.4.2"
 source:
   architectures:
     - linux/amd64
