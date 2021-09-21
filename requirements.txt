@@ -1,1 +1,1 @@
-https://github.com/waggle-sensor/pywaggle/archive/refs/tags/0.44.0.zip
+waggle @ https://github.com/waggle-sensor/pywaggle/releases/download/0.46.0/waggle-0.46.0-py3-none-any.whl
