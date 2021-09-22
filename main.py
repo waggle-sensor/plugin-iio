@@ -58,24 +58,26 @@ def main():
                         format="%(asctime)s %(message)s",
                         datefmt="%Y/%m/%d %H:%M:%S")
 
-    param_set = build_iio_param_set(args.rootdir, args.filter)
-
-    for sensor_name, name, _ in param_set:
-        logging.info("detected sensor %r param %r", sensor_name, name)
-
     logging.info("will scan and publish iio sensor values every %ss", args.rate)
 
     plugin.init()
 
     while True:
         time.sleep(args.rate)
+
+        logging.info("scanning device tree")
+        param_set = build_iio_param_set(args.rootdir, args.filter)
+
+        for sensor_name, name, _ in param_set:
+            logging.debug("detected sensor %r param %r", sensor_name, name)
+
         for sensor_name, name, path in param_set:
-            text = path.read_text()
+            text = path.read_text().strip()
 
             try:
                 value = float(text)
             except ValueError:
-                logging.info("failed to parse %s %s data %s as numeric", sensor_name, name, text)
+                logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
                 continue
 
             plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=args.scope)
