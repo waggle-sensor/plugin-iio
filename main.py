@@ -67,9 +67,15 @@ def main():
 
         logging.info("scanning device tree")
         param_set = build_iio_param_set(args.rootdir, args.filter)
-
+        
+        logging.info("detected %d device parameters", len(param_set))
         for sensor_name, name, _ in param_set:
             logging.debug("detected sensor %r param %r", sensor_name, name)
+
+        logging.info("publishing parameters")
+
+        total_iio_published = 0
+        total_env_published = 0
 
         for sensor_name, name, path in param_set:
             try:
@@ -78,18 +84,20 @@ def main():
                 logging.exception("failed to read data for %s %s", sensor_name, name)
                 continue
 
+            # clean up value to make it easier to read if parse to numeric fails
             text = text.strip()
 
             try:
                 value = float(text)
-            except ValueError:
+            except Exception:
                 logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
                 continue
 
             plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=args.scope)
             logging.debug("published %s %s %s", sensor_name, name, value)
+            total_iio_published += 1
 
-            # transforme value to standard ontology and units, if possible
+            # transform value to standard ontology and units, if possible
             try:
                 tfm_name, tfm_value = transform_value(sensor_name, name, value)
             except KeyError:
@@ -98,6 +106,10 @@ def main():
 
             plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope=args.scope)
             logging.debug("published transformed value %s %s %s", sensor_name, tfm_name, tfm_value)
+            total_env_published += 1
+
+        logging.info("published %d iio.* parameter values", total_iio_published)
+        logging.info("published %d env.* parameter values", total_env_published)
 
 if __name__ == "__main__":
     main()
