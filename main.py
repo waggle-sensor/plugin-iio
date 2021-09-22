@@ -72,7 +72,13 @@ def main():
             logging.debug("detected sensor %r param %r", sensor_name, name)
 
         for sensor_name, name, path in param_set:
-            text = path.read_text().strip()
+            try:
+                text = path.read_text()
+            except Exception:
+                logging.exception("failed to read data for %s %s", sensor_name, name)
+                continue
+
+            text = text.strip()
 
             try:
                 value = float(text)
