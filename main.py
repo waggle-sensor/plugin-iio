@@ -4,6 +4,7 @@ import time
 import logging
 import re
 from waggle.plugin import Plugin
+import sched
 
 
 def build_iio_param_set(rootdir, filter=""):
@@ -44,23 +45,86 @@ def transform_value(sensor_name, name, value):
     return transform_names[name], transform_funcs[sensor_name, name](value)
 
 
+def start_publishing(args, plugin):
+    """
+    start_publishing begins sampling and publishing iio and transformed env data
+    """
+    sch = sched.scheduler(time.time, time.sleep)
+
+    def sample_and_publish_task(scope, delay):
+        sch.enter(delay, 0, sample_and_publish_task, kwargs={
+            "scope": scope,
+            "delay": delay,
+        })
+
+        logging.info("requesting sample for scope %s", scope)
+
+        logging.info("scanning device tree")
+        param_set = build_iio_param_set(args.rootdir, args.filter)
+
+        logging.info("detected %d device parameters", len(param_set))
+        for sensor_name, name, _ in param_set:
+            logging.debug("detected sensor %r param %r", sensor_name, name)
+
+        logging.info("publishing parameters")
+
+        total_iio_published = 0
+        total_env_published = 0
+
+        for sensor_name, name, path in param_set:
+            try:
+                text = path.read_text().strip()
+            except Exception:
+                logging.exception("failed to read data for %s %s", sensor_name, name)
+                continue
+
+            try:
+                value = float(text)
+            except Exception:
+                logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
+                continue
+
+            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope="node")
+            logging.debug("published %s %s %s", sensor_name, name, value)
+            total_iio_published += 1
+
+            # transform value to standard ontology and units, if possible
+            try:
+                tfm_name, tfm_value = transform_value(sensor_name, name, value)
+            except KeyError:
+                logging.debug("no transform for %s %s - skipping", sensor_name, name)
+                continue
+
+            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope="node")
+            logging.debug("published transformed value %s %s %s", sensor_name, tfm_name, tfm_value)
+            total_env_published += 1
+
+        logging.info("published %d iio.* parameter values", total_iio_published)
+        logging.info("published %d env.* parameter values", total_env_published)
+
+    # setup and run publishing schedule
+    if args.node_publish_interval > 0:
+        sch.enter(0, 0, sample_and_publish_task, kwargs={
+            "scope": "node",
+            "delay": args.node_publish_interval,
+        })
+
+    if args.beehive_publish_interval > 0:
+        sch.enter(0, 0, sample_and_publish_task, kwargs={
+            "scope": "beehive",
+            "delay": args.beehive_publish_interval,
+        })
+
+    sch.run()
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--rootdir",
-        type=Path,
-        default="/sys/bus/iio/devices",
-        help="root iio device directory",
-    )
+    parser.add_argument("--rootdir", type=Path, default="/sys/bus/iio/devices", help="root iio device directory")
     parser.add_argument("--debug", action="store_true", help="enable debug logs")
-    parser.add_argument("--rate", default=30.0, type=float, help="sampling rate")
-    parser.add_argument(
-        "--scope",
-        default="all",
-        choices=["all", "node", "beehive"],
-        help="publish scope",
-    )
     parser.add_argument("--filter", default="", help="filter sensor name")
+    parser.add_argument("--node-publish-interval", default=1.0, type=float, help="interval to publish data to node (negative values disable node publishing)")
+    parser.add_argument("--beehive-publish-interval", default=30.0, type=float, help="interval to publish data to beehive (negative values disable beehive publishing)")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -69,78 +133,8 @@ def main():
         datefmt="%Y/%m/%d %H:%M:%S",
     )
 
-    logging.info("will scan and publish iio sensor values every %ss", args.rate)
-
     with Plugin() as plugin:
-        while True:
-            time.sleep(args.rate)
-
-            logging.info("scanning device tree")
-            param_set = build_iio_param_set(args.rootdir, args.filter)
-
-            logging.info("detected %d device parameters", len(param_set))
-            for sensor_name, name, _ in param_set:
-                logging.debug("detected sensor %r param %r", sensor_name, name)
-
-            logging.info("publishing parameters")
-
-            total_iio_published = 0
-            total_env_published = 0
-
-            for sensor_name, name, path in param_set:
-                try:
-                    text = path.read_text()
-                except Exception:
-                    logging.exception(
-                        "failed to read data for %s %s", sensor_name, name
-                    )
-                    continue
-
-                # clean up value to make it easier to read if parse to numeric fails
-                text = text.strip()
-
-                try:
-                    value = float(text)
-                except Exception:
-                    logging.info(
-                        "failed to parse %s %s data %r as numeric",
-                        sensor_name,
-                        name,
-                        text,
-                    )
-                    continue
-
-                plugin.publish(
-                    f"iio.{name}", value, meta={"sensor": sensor_name}, scope=args.scope
-                )
-                logging.debug("published %s %s %s", sensor_name, name, value)
-                total_iio_published += 1
-
-                # transform value to standard ontology and units, if possible
-                try:
-                    tfm_name, tfm_value = transform_value(sensor_name, name, value)
-                except KeyError:
-                    logging.debug(
-                        "no transform for %s %s - skipping", sensor_name, name
-                    )
-                    continue
-
-                plugin.publish(
-                    f"env.{tfm_name}",
-                    tfm_value,
-                    meta={"sensor": sensor_name},
-                    scope=args.scope,
-                )
-                logging.debug(
-                    "published transformed value %s %s %s",
-                    sensor_name,
-                    tfm_name,
-                    tfm_value,
-                )
-                total_env_published += 1
-
-            logging.info("published %d iio.* parameter values", total_iio_published)
-            logging.info("published %d env.* parameter values", total_env_published)
+        start_publishing(args, plugin)
 
 
 if __name__ == "__main__":
