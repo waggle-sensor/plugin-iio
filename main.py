@@ -84,7 +84,7 @@ def start_publishing(args, plugin):
                 logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
                 continue
 
-            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope="node")
+            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=scope)
             logging.debug("published %s %s %s", sensor_name, name, value)
             total_iio_published += 1
 
@@ -95,7 +95,7 @@ def start_publishing(args, plugin):
                 logging.debug("no transform for %s %s - skipping", sensor_name, name)
                 continue
 
-            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope="node")
+            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope=scope)
             logging.debug("published transformed value %s %s %s", sensor_name, tfm_name, tfm_value)
             total_env_published += 1
 
