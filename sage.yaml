@@ -2,12 +2,11 @@ name: plugin-iio
 description: Scans and publishes parameter values for Linux IIO devices.
 keywords: "sensors, temperature, humidity, pressure, bme280, bme680"
 authors: "Sean Shahkarami <sshahkarami@anl.gov>"
-version: "0.5.0"
+version: "0.6.0"
 source:
   architectures:
     - linux/amd64
     - linux/arm64
-    - linux/arm/v7
   url: https://github.com/waggle-sensor/plugin-iio
   branch: main
 testing:
