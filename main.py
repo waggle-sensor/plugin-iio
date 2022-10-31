@@ -1,3 +1,4 @@
+import os
 import argparse
 from pathlib import Path
 import time
@@ -84,8 +85,8 @@ def start_publishing(args, plugin):
                 logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
                 continue
 
-            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=scope)
-            logging.debug("published %s %s %s", sensor_name, name, value)
+            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name, "zone": args.host}, scope=scope)
+            logging.debug("published %s with zone %s %s %s", sensor_name, args.host, name, value)
             total_iio_published += 1
 
             # transform value to standard ontology and units, if possible
@@ -95,8 +96,8 @@ def start_publishing(args, plugin):
                 logging.debug("no transform for %s %s - skipping", sensor_name, name)
                 continue
 
-            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name}, scope=scope)
-            logging.debug("published transformed value %s %s %s", sensor_name, tfm_name, tfm_value)
+            plugin.publish(f"env.{tfm_name}", tfm_value, meta={"sensor": sensor_name, "zone": args.host}, scope=scope)
+            logging.debug("published transformed value %s with zone %s %s %s", sensor_name, args.host, tfm_name, tfm_value)
             total_env_published += 1
 
         logging.info("published %d iio.* parameter values", total_iio_published)
@@ -125,6 +126,7 @@ def main():
     parser.add_argument("--filter", default="", help="filter sensor name")
     parser.add_argument("--node-publish-interval", default=1.0, type=float, help="interval to publish data to node (negative values disable node publishing)")
     parser.add_argument("--beehive-publish-interval", default=30.0, type=float, help="interval to publish data to beehive (negative values disable beehive publishing)")
+    parser.add_argument("--host", default=os.getenv("HOST", ""), type=str, help="full name of the computing host (e.g., 012345678901234-ws-nxcore)")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -132,6 +134,15 @@ def main():
         format="%(asctime)s %(message)s",
         datefmt="%Y/%m/%d %H:%M:%S",
     )
+
+    if args.host == "":
+        logging.error("--host is not set")
+        exit(1)
+    sp = args.host.split("-")
+    if len(sp) < 2:
+        logging.erorr(f'--host {args.host} is in wrong format')
+        exit(1)
+    args.host = sp[-1]
 
     with Plugin() as plugin:
         start_publishing(args, plugin)
