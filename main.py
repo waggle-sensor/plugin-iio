@@ -3,9 +3,24 @@ from pathlib import Path
 import time
 import logging
 import re
-from waggle.plugin import Plugin
+from waggle.plugin import Plugin, get_timestamp
 import sched
+from ttlcache import TTLCache
 
+# TODO(sean) Decide if BME680 should be split into specialized plugin based on requirements. (Ex. if we
+# need to read values in a specific order.)
+#
+# Background on this:
+#
+# We noticed certain spiking behavior when the node and beehive reads overlapped. It turns
+# out that the sensor isn't really meant to be read faster than every 3s. To address this we:
+#
+# 1. Backed off the local node publish interval.
+#
+# 2. Added read caching so that if the node and beehive reads occur with --cache-seconds of each other,
+#    the cached value and timestamp are used instead of rereading the sensor.
+#
+# In my opinion, this is more of a hack to remove spiking until the requirements are better understood.
 
 def build_iio_param_set(rootdir, filter=""):
     filterRE = re.compile(filter)
@@ -45,14 +60,40 @@ def transform_value(sensor_name, name, value):
     return transform_names[name], transform_funcs[sensor_name, name](value)
 
 
+def read_float_from_path(path: Path) -> float:
+    return float(path.read_text().strip())
+
+
 def start_publishing(args, plugin):
     """
     start_publishing begins sampling and publishing iio and transformed env data
     """
-    sch = sched.scheduler(time.time, time.sleep)
+    # setup cached read function get_value_and_timestamp
+    cache = TTLCache()
+
+    def get_value_and_timestamp(sensor_name, name, path):
+        try:
+            value, timestamp = cache[(sensor_name, name)]
+            logging.info("using cached reading for %s %s: %s @ %s", sensor_name, name, value, timestamp)
+            return value, timestamp
+        except KeyError:
+            pass
+
+        # get timestamp and value
+        logging.info("reading value for %s %s", sensor_name, name)
+        timestamp = get_timestamp()
+        value = read_float_from_path(path)
+
+        # cache newly read value
+        cache.set((sensor_name, name), (value, timestamp), ttl=args.cache_seconds)
+
+        return value, timestamp
+
+    # setup main scheduler loop
+    scheduler = sched.scheduler(time.time, time.sleep)
 
     def sample_and_publish_task(scope, delay):
-        sch.enter(delay, 0, sample_and_publish_task, kwargs={
+        scheduler.enter(delay, 0, sample_and_publish_task, kwargs={
             "scope": scope,
             "delay": delay,
         })
@@ -73,18 +114,12 @@ def start_publishing(args, plugin):
 
         for sensor_name, name, path in param_set:
             try:
-                text = path.read_text().strip()
+                value, timestamp = get_value_and_timestamp(sensor_name, name, path)
             except Exception:
                 logging.exception("failed to read data for %s %s", sensor_name, name)
                 continue
 
-            try:
-                value = float(text)
-            except Exception:
-                logging.info("failed to parse %s %s data %r as numeric", sensor_name, name, text)
-                continue
-
-            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=scope)
+            plugin.publish(f"iio.{name}", value, meta={"sensor": sensor_name}, scope=scope, timestamp=timestamp)
             logging.debug("published %s %s %s", sensor_name, name, value)
             total_iio_published += 1
 
@@ -104,18 +139,18 @@ def start_publishing(args, plugin):
 
     # setup and run publishing schedule
     if args.node_publish_interval > 0:
-        sch.enter(0, 0, sample_and_publish_task, kwargs={
+        scheduler.enter(0, 0, sample_and_publish_task, kwargs={
             "scope": "node",
             "delay": args.node_publish_interval,
         })
 
     if args.beehive_publish_interval > 0:
-        sch.enter(0, 0, sample_and_publish_task, kwargs={
+        scheduler.enter(0, 0, sample_and_publish_task, kwargs={
             "scope": "beehive",
             "delay": args.beehive_publish_interval,
         })
 
-    sch.run()
+    scheduler.run()
 
 
 def main():
@@ -123,6 +158,7 @@ def main():
     parser.add_argument("--rootdir", type=Path, default="/sys/bus/iio/devices", help="root iio device directory")
     parser.add_argument("--debug", action="store_true", help="enable debug logs")
     parser.add_argument("--filter", default="", help="filter sensor name")
+    parser.add_argument("--cache-seconds", default=3.0, type=float, help="seconds to cache read values")
     parser.add_argument("--node-publish-interval", default=1.0, type=float, help="interval to publish data to node (negative values disable node publishing)")
     parser.add_argument("--beehive-publish-interval", default=30.0, type=float, help="interval to publish data to beehive (negative values disable beehive publishing)")
     args = parser.parse_args()
