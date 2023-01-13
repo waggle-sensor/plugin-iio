@@ -4,6 +4,7 @@ jobs:
   run-unit-tests:
     runs-on: ubuntu-latest
     container:
+      # TODO(sean) build local image instead and use to run tests
       image: python:3.8-alpine
     steps:
       - name: Checkout repo
