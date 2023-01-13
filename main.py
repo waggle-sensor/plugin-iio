@@ -98,7 +98,7 @@ def start_publishing(args, plugin):
             "delay": delay,
         })
 
-        logging.info("requesting sample for scope %s", scope)
+        logging.info("starting sample and publish for %s", scope)
 
         logging.info("scanning device tree")
         param_set = build_iio_param_set(args.rootdir, args.filter)
@@ -136,6 +136,7 @@ def start_publishing(args, plugin):
 
         logging.info("published %d iio.* parameter values", total_iio_published)
         logging.info("published %d env.* parameter values", total_env_published)
+        logging.info("finished sample and publish for %s", scope)
 
     # setup and run publishing schedule
     if args.node_publish_interval > 0:
