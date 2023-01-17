@@ -14,7 +14,7 @@ The follow parameters are intended for end users:
 * `--node-publish-interval`. Interval (in seconds) of how often to publish measurement within the node. (Default: 10 seconds)
 * `--beehive-publish-interval`. Interval (in seconds) of how often to publish measurement to cloud. (Default: 30 seconds)
 
-A couple notes relating the cache time and publish time:
+A couple notes relating the cache and publish times:
 
 * A sensor parameter's read rate is at most `--cache-seconds`. This is intended to limit the number of interactions with the physical sensor.
 * If a node and beehive publish occur within `--cache-seconds` of each other, the value _and_ timestamp of the first publish will also be used for the second.
