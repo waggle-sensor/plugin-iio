@@ -4,6 +4,15 @@ This plugin scans for all Linux IIO subsystem sensors on a device a reports thei
 
 _Note: This plugin must be deployed in priviledged mode or be able to read `/sys`._
 
+## Usage
+
+The follow parameters are intended for end users:
+
+* `--debug`. Enables debugging level logging.
+* `--filter`. Restricts sampling to only IIO devices matching the provided filter. (Ex. `bme680`.)
+* `--cache-seconds`. Duration (in seconds) to cache a successful parameter reading and timestamp from sysfs. (Default: 3 seconds)
+* `--node-publish-interval`. Interval (in seconds) of how often to publish measurement within the node. (Default: 10 seconds)
+* `--beehive-publish-interval`. Interval (in seconds) of how often to publish measurement to cloud. (Default: 30 seconds)
 
 ## TODOs and Notes
 
