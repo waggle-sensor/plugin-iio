@@ -16,9 +16,32 @@ The follow parameters are intended for end users:
 
 A couple notes relating the cache and publish times:
 
-* A sensor parameter's read rate is at most `--cache-seconds`. This is intended to limit the number of interactions with the physical sensor.
+* The `--cache-seconds` effectively serves as a rate limiter with respect to reading the underlying physical sensor. Since the underlying sensor's sysfs files are cached for `--cache-seconds`, they will never be read more frequently than that.
 * If a node and beehive publish occur within `--cache-seconds` of each other, the value _and_ timestamp of the first publish will also be used for the second.
   * This is functionally the same as combining the first and second publishes with a potentially small delay on availability of the second measurement.
+
+As a timeline diagram, these interact as follows:
+
+```
+  local publish triggers sensor
+  read and caches for 3s
+      v
+L     x         x
+B                x
+C     xxx       xxx
+S     x         x
+--------------------------->
+                ^
+      local publish triggers sensor
+      read and caches for 3s which
+      is reused by beehive publish
+
+Legend
+ S sensor read
+ L local publish
+ B beehive publish
+ C value cache
+```
 
 ## TODOs and Notes
 
