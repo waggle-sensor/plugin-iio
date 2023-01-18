@@ -40,7 +40,7 @@ Legend
  S sensor read
  L local publish
  B beehive publish
- C value cache
+ C value cached
 ```
 
 ## TODOs and Notes
